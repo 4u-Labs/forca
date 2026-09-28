@@ -1,0 +1,30 @@
+{
+  "name": "Forca Pro — Jogo da Forca Arcade, Desafio Diário & Duelo",
+  "short_name": "Forca Pro",
+  "description": "Suíte interativa do Jogo da Forca com mais de 1.500 palavras, acentos inteligentes, modo Blitz, duelo para 2 jogadores e desafio diário.",
+  "start_url": "./index.php",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "categories": ["games", "education", "entertainment"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
