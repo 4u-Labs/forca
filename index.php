@@ -552,25 +552,42 @@ header("Cache-Control: public, max-age=3600");
   <!-- Game Logic Script -->
   <script>
     // ==========================================
-    // 1. ÁUDIO SINTETIZADO (Web Audio API)
+    // 1. MOTOR DE ÁUDIO ROBUSTO (Web Audio API)
     // ==========================================
     let audioCtx = null;
     let soundEnabled = localStorage.getItem('forca_sound') !== 'false';
 
-    function initAudio() {
+    function getAudioContext() {
       if (!audioCtx) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) audioCtx = new AudioContext();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
       }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
+      return audioCtx;
+    }
+
+    function unlockAudio() {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
     }
+    const initAudio = unlockAudio;
+
+    // Desbloqueia áudio no primeiro gesto do usuário em qualquer ponto da tela
+    ['click', 'touchstart', 'touchend', 'keydown', 'mousedown'].forEach(evt => {
+      window.addEventListener(evt, unlockAudio, { passive: true });
+    });
 
     function toggleSound() {
       soundEnabled = !soundEnabled;
       localStorage.setItem('forca_sound', soundEnabled);
       updateSoundUI();
+      if (soundEnabled) {
+        unlockAudio();
+        sfxCorrect(); // Feedback sonoro imediato confirmando som ativado
+      }
     }
 
     function updateSoundUI() {
@@ -586,49 +603,107 @@ header("Cache-Control: public, max-age=3600");
     }
     updateSoundUI();
 
-    function playTone(freq, type, duration, gainVal = 0.1) {
+    function playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.3) {
       if (!soundEnabled) return;
-      initAudio();
-      if (!audioCtx) return;
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-      } catch (e) {}
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const run = () => {
+        try {
+          const now = ctx.currentTime + 0.005;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+
+          // Envelope suave e audível
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(gainVal, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + duration + 0.03);
+        } catch (e) {
+          console.warn('Audio tone error:', e);
+        }
+      };
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(run).catch(() => {});
+      } else {
+        run();
+      }
     }
 
-    function sfxClick() { playTone(600, 'sine', 0.05, 0.05); }
+    function sfxClick() {
+      playTone(700, 'triangle', 0.07, 0.25);
+    }
+
     function sfxCorrect() {
       if (!soundEnabled) return;
-      initAudio();
-      playTone(523.25, 'sine', 0.12, 0.1); // C5
-      setTimeout(() => playTone(659.25, 'sine', 0.16, 0.1), 80); // E5
+      playTone(523.25, 'triangle', 0.14, 0.35); // C5
+      setTimeout(() => {
+        playTone(783.99, 'triangle', 0.20, 0.40); // G5
+      }, 90);
     }
+
     function sfxWrong() {
       if (!soundEnabled) return;
-      playTone(180, 'sawtooth', 0.25, 0.12);
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const run = () => {
+        try {
+          const now = ctx.currentTime + 0.005;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(170, now);
+          osc.frequency.linearRampToValueAtTime(105, now + 0.25);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.35, now + 0.02);
+          gain.gain.linearRampToValueAtTime(0.001, now + 0.25);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.26);
+        } catch (e) {
+          playTone(140, 'sawtooth', 0.25, 0.35);
+        }
+      };
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(run).catch(() => {});
+      } else {
+        run();
+      }
     }
+
     function sfxWin() {
       if (!soundEnabled) return;
-      initAudio();
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
       notes.forEach((freq, idx) => {
-        setTimeout(() => playTone(freq, 'triangle', 0.25, 0.15), idx * 110);
+        setTimeout(() => {
+          playTone(freq, 'triangle', 0.25, 0.35);
+        }, idx * 100);
       });
     }
+
     function sfxLose() {
       if (!soundEnabled) return;
-      initAudio();
-      const notes = [392.00, 369.99, 349.23, 311.13];
+      const notes = [392.00, 369.99, 349.23, 293.66]; // G4, F#4, F4, D4
       notes.forEach((freq, idx) => {
-        setTimeout(() => playTone(freq, 'sawtooth', 0.3, 0.12), idx * 130);
+        setTimeout(() => {
+          playTone(freq, 'sawtooth', 0.30, 0.30);
+        }, idx * 130);
       });
     }
 
